@@ -8,56 +8,69 @@
 import UIKit
 import GoogleMobileAds
 
-class ViewController: UIViewController, GADRewardedAdDelegate {
+class ViewController: UIViewController, GADFullScreenContentDelegate {
     
+    // The rewarded video ad
     var rewardedAd: GADRewardedAd?
-    var adRequestInProgress = false
-    var testUnitId = "ca-app-pub-3940256099942544/1712485313"
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        rewardedAd = createAndLoadRewardedAd()
     }
     
-    func createAndLoadRewardedAd()  -> GADRewardedAd{
-        
-        rewardedAd = GADRewardedAd(adUnitID: testUnitId)
-        rewardedAd?.load(GADRequest()) { error in
-            if let error = error {
-                print("広告の読み出し失敗: \(error)")
-            } else {
-                print("広告の読み出し設定完了")
+    fileprivate func loadRewardVideoAd() {
+        GADRewardedAd.load(withAdUnitID: "ca-app-pub-3940256099942544/1712485313", request: GADRequest())  { (ad, error) in
+            
+          if let error = error {
+            print("오류로 인해 보상광고를 로드하지 못했습니다 : \(error.localizedDescription)")
+            return
+          }
+            
+          print("보상광고가 로드되었습니다.")
+          self.rewardedAd = ad
+          self.rewardedAd?.fullScreenContentDelegate = self
+        }
+      }
+    
+    func presentRewardVideo() {
+       DispatchQueue.background(background: {
+           // do something in background
+           self.loadRewardVideoAd()
+
+       }, completion:{
+           // when background job finished, do something in main thread
+           if let ad = self.rewardedAd {
+              // reward the user
+              ad.present(fromRootViewController: self) {
+                  print("보상 지급 : \(ad)")
             }
-        }
-        return rewardedAd!
+             
+            } else {
+               
+             // the Ad failed to present .. show alert message
+             let alert = UIAlertController(title: "알림", message: "보상광고 정보를 불러오고 있습니다.\n잠시 후에 다시 시도해 주세요.",preferredStyle: .alert)
+             let alertAction = UIAlertAction(title: "OK", style: .cancel, handler: { [weak self] action in
+                 self?.loadRewardVideoAd()
+             })
+             alert.addAction(alertAction)
+             self.present(alert, animated: true, completion: nil)
+           }
+       })
     }
-    
-    func rewardedAd(_ rewardedAd: GADRewardedAd, userDidEarn reward: GADAdReward) {
-            print("再生終了。達成おめでとう")
-            print("Reward received with currency: \(reward.type), amount \(reward.amount).")
-        }
-        
-    func rewardedAdDidPresent(_ rewardedAd: GADRewardedAd) {
-        print("動画広告表示中")
-    }
-    
-    // 前のリワード広告の表示が終了したらすぐに次のリワード広告の読み込みを開始できるようにする
-    func rewardedAdDidDismiss(_ rewardedAd: GADRewardedAd) {
-        print("動画広告終了")
-        adRequestInProgress = false
-        var rewardedAd = createAndLoadRewardedAd()
-        print("rewardedAd : \(rewardedAd)")
-    }
-    func rewardedAd(_ rewardedAd: GADRewardedAd, didFailToPresentWithError error: Error) {
-        print("動画広告表示失敗")
-        adRequestInProgress = false
-    }
-    
     
     @IBAction func playRewardedAdBtn(_ sender: Any) {
-        if rewardedAd!.isReady == true {
-            rewardedAd!.present(fromRootViewController: self, delegate: self)
-        }
+        presentRewardVideo()
     }
 }
 
+extension DispatchQueue {
+    static func background(delay: Double = 0.0, background: (()->Void)? = nil, completion: (() -> Void)? = nil) {
+        DispatchQueue.global(qos: .background).async {
+            background?()
+            if let completion = completion {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: {
+                    completion()
+                })
+            }
+        }
+    }
+}
