@@ -8,55 +8,56 @@
 import UIKit
 import GoogleMobileAds
 
-class ViewController: UIViewController, GADBannerViewDelegate {
-
-    @IBOutlet weak var banner: GADBannerView!
+class ViewController: UIViewController, GADRewardedAdDelegate {
+    
+    var rewardedAd: GADRewardedAd?
+    var adRequestInProgress = false
+    var testUnitId = "ca-app-pub-3940256099942544/1712485313"
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        // Do any additional setup after loading the view.
-        
-        banner.adUnitID = "ca-app-pub-3940256099942544/2435281174"
-        banner.rootViewController = self
+        rewardedAd = createAndLoadRewardedAd()
     }
     
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        // Note loadBannerAd is called in viewDidAppear as this is the first time that
-        // the safe area is known. If safe area is not a concern (e.g., your app is
-        // locked in portrait mode), the banner can be loaded in viewWillAppear.
-        loadBannerAd()
-      }
-
-    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
-        super.viewWillTransition(to:size, with:coordinator)
-        coordinator.animate(alongsideTransition: { _ in
-          self.loadBannerAd()
-        })
-      }
+    func createAndLoadRewardedAd()  -> GADRewardedAd{
+        
+        rewardedAd = GADRewardedAd(adUnitID: testUnitId)
+        rewardedAd?.load(GADRequest()) { error in
+            if let error = error {
+                print("広告の読み出し失敗: \(error)")
+            } else {
+                print("広告の読み出し設定完了")
+            }
+        }
+        return rewardedAd!
+    }
     
-    func loadBannerAd() {
-        // Step 2 - Determine the view width to use for the ad width.
-        let frame = { () -> CGRect in
-          // Here safe area is taken into account, hence the view frame is used
-          // after the view has been laid out.
-          if #available(iOS 11.0, *) {
-            return view.frame.inset(by: view.safeAreaInsets)
-          } else {
-            return view.frame
-          }
-        }()
-        let viewWidth = frame.size.width
-
-        // Step 3 - Get Adaptive GADAdSize and set the ad view.
-        // Here the current interface orientation is used. If the ad is being preloaded
-        // for a future orientation change or different orientation, the function for the
-        // relevant orientation should be used.
-        banner.adSize = GADCurrentOrientationAnchoredAdaptiveBannerAdSizeWithWidth(viewWidth)
-
-        // Step 4 - Create an ad request and load the adaptive banner ad.
-        banner.load(GADRequest())
-      }
+    func rewardedAd(_ rewardedAd: GADRewardedAd, userDidEarn reward: GADAdReward) {
+            print("再生終了。達成おめでとう")
+            print("Reward received with currency: \(reward.type), amount \(reward.amount).")
+        }
+        
+    func rewardedAdDidPresent(_ rewardedAd: GADRewardedAd) {
+        print("動画広告表示中")
+    }
     
+    // 前のリワード広告の表示が終了したらすぐに次のリワード広告の読み込みを開始できるようにする
+    func rewardedAdDidDismiss(_ rewardedAd: GADRewardedAd) {
+        print("動画広告終了")
+        adRequestInProgress = false
+        var rewardedAd = createAndLoadRewardedAd()
+        print("rewardedAd : \(rewardedAd)")
+    }
+    func rewardedAd(_ rewardedAd: GADRewardedAd, didFailToPresentWithError error: Error) {
+        print("動画広告表示失敗")
+        adRequestInProgress = false
+    }
+    
+    
+    @IBAction func playRewardedAdBtn(_ sender: Any) {
+        if rewardedAd!.isReady == true {
+            rewardedAd!.present(fromRootViewController: self, delegate: self)
+        }
+    }
 }
 
